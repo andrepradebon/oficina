@@ -15,18 +15,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
-/* Ferramenta de campo: uma coluna, alvos de toque grandes, faixa amarela de segurança como marca. */
+/* Ferramenta de campo: uma coluna, alvos de toque grandes, faixa verde da empresa como marca. */
 :root{
   --bg:#E7EAEC; --surface:#FFFFFF; --sunk:#F1F3F4; --ink:#1A1F24; --muted:#5B6670; --line:#CDD3D8;
-  --accent:#F2B705; --on-accent:#1A1F24; --accent-ink:#8A6400;
-  --bad:#B6342A; --bad-bg:#F8DEDA; --warn:#94600A; --warn-bg:#FBEFCF; --ok:#1D7A4C; --ok-bg:#DDF1E6; --info:#255E91; --info-bg:#DDEAF6;
+  --accent:#1F7A3A; --on-accent:#FFFFFF; --accent-ink:#17602D;
+  --bad:#B6342A; --bad-bg:#F8DEDA; --warn:#94600A; --warn-bg:#FBEFCF; --ok:#0F7B6C; --ok-bg:#D7F0EC; --info:#255E91; --info-bg:#DDEAF6;
   --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root{
   --bg:#111518; --surface:#1B2125; --sunk:#161B1F; --ink:#ECEFF1; --muted:#9AA5AE; --line:#2D363C;
-  --accent:#F5C21B; --on-accent:#14181B; --accent-ink:#F5C21B;
-  --bad:#F27466; --bad-bg:#3A1B18; --warn:#F0B44C; --warn-bg:#33270F; --ok:#5CCB93; --ok-bg:#16301F; --info:#7FB3E6; --info-bg:#18283A;
+  --accent:#2A8F47; --on-accent:#FFFFFF; --accent-ink:#5CCB7F;
+  --bad:#F27466; --bad-bg:#3A1B18; --warn:#F0B44C; --warn-bg:#33270F; --ok:#5CC9B9; --ok-bg:#12302C; --info:#7FB3E6; --info-bg:#18283A;
   color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -35,7 +35,7 @@ body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);font-varia
 .wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
 .barra{display:flex;align-items:center;gap:10px;padding-block:10px;min-height:56px}
-.faixa{width:28px;height:28px;border-radius:6px;flex:none;background:repeating-linear-gradient(-45deg,var(--accent) 0 6px,var(--on-accent) 6px 12px)}
+.faixa{width:28px;height:28px;border-radius:6px;flex:none;background:repeating-linear-gradient(-45deg,var(--accent) 0 6px,var(--ink) 6px 12px)}
 .marca{font:700 22px/1 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0}
 .voltar{background:none;border:0;color:var(--ink);font:600 16px var(--body);padding:8px 6px 8px 0;cursor:pointer;display:flex;align-items:center;gap:4px}
 .quem{margin-left:auto;text-align:right;font-size:13px;color:var(--muted);line-height:1.2}
