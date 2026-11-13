@@ -1,7 +1,7 @@
 /* Oficina · app de relatos e ordens de serviço · v2.0
    Funciona sem internet: tudo fica no celular e é enviado quando o sinal voltar. */
 (function () {
-  var VERSAO_APP = '2.2.3';
+  var VERSAO_APP = '2.2.4';
   var O = window.Oficina, L = O.Local;
   var S = { token: null, snap: null, fila: [], view: 'carregando', pilha: [], form: null, dados: null, filtroOS: 'abertas',
             online: navigator.onLine !== false, sincronizando: false, instalar: null, login: { nomes: null, msg: '', nome: '' } };
@@ -153,7 +153,7 @@
       '<label>PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8" placeholder="••••"></label>' +
       (d.msg ? '<p class="erro">' + esc(d.msg) + '</p>' : '') +
       '<button class="btn" id="btnEntrar"' + (nomes ? '' : ' disabled') + '>Entrar</button>' +
-      '<p class="hint">Não está na lista ou esqueceu o PIN? Fale com o apontador.</p></div>' +
+      '<p class="hint">Não está na lista ou esqueceu o PIN? Fale com o chefe de oficina.</p></div>' +
       (O && !window.OFICINA_API ? '<p class="aviso">O endereço da planilha ainda não foi configurado neste app.</p>' : '') +
       '<p class="rodape">Oficina · versão ' + VERSAO_APP + '</p>';
   }
@@ -383,7 +383,7 @@
 
     html += blocoPecas(o, ed);
     html += '<div class="card"><h3>Serviço</h3>' +
-      (ed ? '' : '<p class="aviso">' + (o.status === 'Concluída' ? 'OS concluída. Só o apontador pode reabrir ou alterar.' : 'Só o mecânico desta OS ou o apontador pode alterar.') + '</p>') +
+      (ed ? '' : '<p class="aviso">' + (o.status === 'Concluída' ? 'OS concluída. Só o chefe de oficina pode reabrir ou alterar.' : 'Só o mecânico desta OS ou o chefe de oficina pode alterar.') + '</p>') +
       '<div class="campo">Situação<div class="seg">' + S.snap.status.map(function (s) { return '<button data-st="' + esc(s) + '" aria-pressed="' + (f.status === s) + '"' + dis + '>' + esc(s) + '</button>'; }).join('') + '</div></div>' +
       (u.chefe ? '<div class="linha"><label>Mecânico<select id="oMec"><option value="">Sem mecânico</option>' + S.snap.mecanicos.map(function (m) { return '<option' + (m === f.mecanico ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></label>' +
         '<label>Prioridade<select id="oPri">' + S.snap.prioridades.map(function (p) { return '<option' + (p === f.prioridade ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</select></label></div>' +

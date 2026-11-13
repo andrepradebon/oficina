@@ -2,7 +2,7 @@
    e, no Android, envia a fila em segundo plano quando o sinal volta. */
 importScripts('config.js', 'sync.js');
 
-var VERSAO = 'oficina-v2.2.3';
+var VERSAO = 'oficina-v2.2.4';
 var FONTES = 'oficina-fontes';
 var ARQUIVOS = ['./', 'index.html', 'app.js', 'sync.js', 'config.js', 'manifest.webmanifest', 'icone-192.png', 'icone-512.png', 'icone-mascara.png'];
 
