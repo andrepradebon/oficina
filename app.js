@@ -1,7 +1,7 @@
 /* Oficina · app de relatos e ordens de serviço · v2.0
    Funciona sem internet: tudo fica no celular e é enviado quando o sinal voltar. */
 (function () {
-  var VERSAO_APP = '2.2.1';
+  var VERSAO_APP = '2.2.2';
   var O = window.Oficina, L = O.Local;
   var S = { token: null, snap: null, fila: [], view: 'carregando', pilha: [], form: null, dados: null, filtroOS: 'abertas',
             online: navigator.onLine !== false, sincronizando: false, instalar: null, login: { nomes: null, msg: '', nome: '' } };
