@@ -2,7 +2,7 @@
    e, no Android, envia a fila em segundo plano quando o sinal volta. */
 importScripts('config.js', 'sync.js');
 
-var VERSAO = 'oficina-v2.1.0';
+var VERSAO = 'oficina-v2.2.0';
 var FONTES = 'oficina-fontes';
 var ARQUIVOS = ['./', 'index.html', 'app.js', 'sync.js', 'config.js', 'manifest.webmanifest', 'icone-192.png', 'icone-512.png', 'icone-mascara.png'];
 
@@ -12,7 +12,7 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) {
-    return Promise.all(ks.filter(function (k) { return k !== VERSAO && k !== FONTES; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(ks.filter(function (k) { return k.indexOf('oficina-') === 0 && k !== VERSAO && k !== FONTES; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 

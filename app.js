@@ -1,12 +1,13 @@
 /* Oficina · app de relatos e ordens de serviço · v2.0
    Funciona sem internet: tudo fica no celular e é enviado quando o sinal voltar. */
 (function () {
-  var VERSAO_APP = '2.1.0';
+  var VERSAO_APP = '2.2.0';
   var O = window.Oficina, L = O.Local;
   var S = { token: null, snap: null, fila: [], view: 'carregando', pilha: [], form: null, dados: null, filtroOS: 'abertas',
             online: navigator.onLine !== false, sincronizando: false, instalar: null, login: { nomes: null, msg: '', nome: '' } };
   var app = document.getElementById('app'), barra = document.getElementById('barra'), estado = document.getElementById('estado');
-  var VIEWS_FORM = { relatar: 1, os: 1 };
+  var VIEWS_FORM = { relatar: 1, os: 1, pedirPecas: 1 };
+  var UNIDADES = ['un', 'pç', 'jg', 'par', 'kit', 'L', 'm', 'kg', 'cx', 'gl'];
 
   // ---------------- utilidades ----------------
   function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -57,7 +58,7 @@
     }).then(recarregarFila).then(function () {
       S.sincronizando = false;
       if (S.view === 'login') return;
-      if (!VIEWS_FORM[S.view]) render(); else desenharEstado();
+      if (!VIEWS_FORM[S.view]) render(); else { desenharEstado(); if (S.view === 'os') atualizarCardPecas(); }
     });
   }
 
@@ -80,7 +81,10 @@
     S.view = view; S.dados = dados || null;
     render(); window.scrollTo(0, 0);
   }
-  function voltar() { S.form = null; S.view = S.pilha.pop() || 'inicio'; S.dados = null; render(); window.scrollTo(0, 0); }
+  function voltar() {
+    var dados = S.view === 'pedirPecas' ? S.dados : null;   // volta para a mesma OS
+    S.form = null; S.view = S.pilha.pop() || 'inicio'; S.dados = dados; render(); window.scrollTo(0, 0);
+  }
 
   function cabecalho() {
     var u = U();
@@ -97,7 +101,7 @@
   function render() {
     if (VIEWS_FORM[S.view]) salvarCamposDaTela();
     cabecalho();
-    var f = { login: vLogin, inicio: vInicio, relatar: vRelatar, meusRelatos: vRelatos, fila: vFila, listaOS: vListaOS, os: vOS, painel: vPainel, envios: vEnvios,
+    var f = { login: vLogin, inicio: vInicio, relatar: vRelatar, meusRelatos: vRelatos, fila: vFila, listaOS: vListaOS, os: vOS, painel: vPainel, envios: vEnvios, pedirPecas: vPedirPecas,
               carregando: function () { return '<div class="carregando">Carregando…</div>'; } }[S.view] || vInicio;
     app.innerHTML = f();
     ligar();
@@ -289,7 +293,47 @@
     var c = { 'Aberta': 'warn', 'Em andamento': 'info', 'Aguardando peça': 'bad', 'Concluída': 'ok' }[s] || '';
     return '<span class="pill ' + c + '">' + esc(s) + '</span>';
   }
-  function osPendente(numero) { return S.fila.some(function (i) { return i.acao === 'atualizarOS' && i.args[0] === numero; }); }
+  function osPendente(numero) { return S.fila.some(function (i) { return (i.acao === 'atualizarOS' || i.acao === 'pedirPecas') && i.args[0] === numero; }); }
+  function pillCompra(s) {
+    var c = { 'Aguardando aprovação': 'warn', 'Em cotação': 'info', 'Aguardando diretoria': 'warn', 'Compra aprovada': 'info', 'Aguardando entrega': 'info',
+              'Entrega parcial': 'bad', 'Problema na entrega': 'bad', 'Entregue': 'ok', 'Reprovado': 'bad', 'Cancelado': 'bad' }[s] || 'warn';
+    return '<span class="pill ' + c + '">' + esc(s) + '</span>';
+  }
+  // pedidos de peça desta OS: os que já estão no Compras e os guardados no celular
+  function blocoPecas(o, ed) {
+    var lista = (o.pedidosPecas || []).slice();
+    var guardados = S.fila.filter(function (i) { return i.acao === 'pedirPecas' && i.args[0] === o.numero; });
+    var recebendo = {};
+    S.fila.forEach(function (i) { if (i.acao === 'receberPeca') recebendo[i.args[0]] = i; });
+    var pode = ed && o.status !== 'Concluída' && S.snap.comprasLigado;
+    if (!lista.length && !guardados.length && !pode) return '';
+    var html = '<div class="card" id="cardPecas"><h3>Peças pedidas ao Compras</h3>';
+    guardados.forEach(function (i) {
+      var d = i.args[1];
+      html += '<div class="peca"><div class="topo"><b>' + (i.falhou ? 'Pedido com erro' : 'Enviando ao Compras…') + '</b>' + (i.falhou ? '<span class="pill bad">Erro</span>' : '<span class="pill warn">Guardado</span>') + '</div>' +
+        '<div class="bloco">' + esc(d.itens.map(function (it) { return it.qtd + ' ' + it.un + ' · ' + it.desc; }).join('\n')) + '</div>' +
+        (i.falhou ? '<p class="erro">' + esc(i.erro) + '</p><button class="btn sec" data-ir="envios">Ver envios com erro</button>' : '<span class="hint">Feito em ' + esc(i.dataTexto) + (S.online ? '' : '. Vai quando o sinal voltar.') + '</span>') + '</div>';
+    });
+    lista.forEach(function (pc) {
+      var rec = recebendo[pc.rc];
+      html += '<div class="peca"><div class="topo"><b>' + esc(pc.rc) + (pc.oc ? ' · ' + esc(pc.oc) : '') + '</b>' + pillCompra(rec ? 'Chegada guardada' : pc.situacao) + '</div>' +
+        '<div class="bloco">' + esc(pc.itens) + '</div>' +
+        '<span class="hint">Pedido por ' + esc(pc.pedidoPor) + ' em ' + esc(pc.pedidoEm) + (pc.fornecedor ? ' · ' + esc(pc.fornecedor) : '') + (pc.previsao ? ' · entrega prevista ' + esc(pc.previsao) : '') + '</span>' +
+        (pc.motivo && /Reprovado|Cancelado|parcial|Problema/.test(pc.situacao) ? '<p class="aviso">' + esc(pc.motivo) + '</p>' : '') +
+        (pc.recebimento ? '<span class="hint">' + esc(pc.recebimento) + '</span>' : '');
+      if (pc.aReceber && ed && !rec) {
+        var r = S.receber && S.receber.rc === pc.rc ? S.receber : null;
+        html += '<div class="campo">A peça chegou?<div class="seg tres">' + [['Total', 'Chegou tudo'], ['Parcial', 'Chegou parte'], ['Problema', 'Com problema']].map(function (t) {
+          return '<button data-receber="' + esc(pc.rc) + '" data-tipo-rec="' + t[0] + '" aria-pressed="' + (!!r && r.tipo === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div></div>';
+        if (r) html += (r.tipo !== 'Total' ? '<label>' + (r.tipo === 'Parcial' ? 'O que chegou e o que faltou' : 'Qual o problema') + '<textarea id="recObs">' + esc(r.obs || '') + '</textarea></label>' : '') +
+          '<p class="erro" id="recErro" hidden></p><button class="btn" id="btnConfRec">Confirmar chegada</button>';
+      }
+      html += '</div>';
+    });
+    if (pode) html += '<button class="btn sec" id="btnPedirPecas">Pedir peças</button>';
+    else if (!S.snap.comprasLigado && ed && o.status !== 'Concluída') html += '<p class="hint">O pedido de peças pelo app ainda não foi ligado ao Compras.</p>';
+    return html + '</div>';
+  }
 
   function vListaOS() {
     var u = U(), l = (S.snap && S.snap.os) || [];
@@ -329,7 +373,7 @@
     var html = '<div class="card"><div class="reg ' + (o.prioridade === 'Urgente' ? 'urgente' : '') + '" style="border:0;padding:0"><span class="tarja"></span><div class="corpo">' +
       '<div class="topo"><span class="maq">' + esc(o.maquina) + '</span>' + pillStatus(o.status) + '</div>' +
       '<div class="meta">' + esc(o.numero) + ' · aberta em ' + esc(o.aberta) + ' por ' + esc(o.abertaPor) + '</div></div></div>' +
-      (osPendente(o.numero) ? '<p class="aviso">Há alterações desta OS guardadas no celular, aguardando envio.</p>' : '') +
+      (osPendente(o.numero) ? '<p class="aviso" id="avisoPend">Há alterações desta OS guardadas no celular, aguardando envio.</p>' : '') +
       '<div class="kv"><div><span class="l">Prioridade</span><span class="v">' + esc(o.prioridade) + '</span></div><div><span class="l">Mecânico</span><span class="v">' + esc(o.mecanico || '—') + '</span></div>' +
       '<div><span class="l">Máquina parada</span><span class="v"' + (o.parada && o.status !== 'Concluída' ? ' style="color:var(--bad)"' : '') + '>' + (o.parada ? 'Sim' + (o.diasParada !== null && o.diasParada !== undefined ? ' · ' + o.diasParada + ' dia(s)' : '') : 'Não') + '</span></div><div><span class="l">Tipo</span><span class="v">' + esc(o.tipo) + '</span></div></div>' +
       '<div class="campo">Problema relatado<div class="bloco">' + esc(o.problema) + '</div>' +
@@ -337,6 +381,7 @@
       (r && r.fotos && r.fotos.length ? '<div class="fotos">' + r.fotos.map(thumb).join('') + '</div>' : '') +
       (o.observacao && !u.chefe ? '<div class="campo">Observação<div class="bloco">' + esc(o.observacao) + '</div></div>' : '') + '</div>';
 
+    html += blocoPecas(o, ed);
     html += '<div class="card"><h3>Serviço</h3>' +
       (ed ? '' : '<p class="aviso">' + (o.status === 'Concluída' ? 'OS concluída. Só o chefe de oficina pode reabrir ou alterar.' : 'Só o mecânico desta OS ou o chefe de oficina pode alterar.') + '</p>') +
       '<div class="campo">Situação<div class="seg">' + S.snap.status.map(function (s) { return '<button data-st="' + esc(s) + '" aria-pressed="' + (f.status === s) + '"' + dis + '>' + esc(s) + '</button>'; }).join('') + '</div></div>' +
@@ -357,6 +402,23 @@
       (o.pdf ? '<a class="link" href="' + esc(o.pdf) + '" target="_blank" rel="noopener">Abrir o último PDF desta OS</a>' : '') +
       '<p class="hint">Última atualização: ' + esc(o.atualizada) + (o.atualizadaPor ? ' por ' + esc(o.atualizadaPor) : '') + '</p></div>';
     return html;
+  }
+
+  function vPedirPecas() {
+    var o = acharOS(S.dados && S.dados.numero);
+    if (!o) return '<div class="card vazio"><b>OS não encontrada neste celular</b></div>';
+    var f = S.form || (S.form = { numero: o.numero, itens: [{ desc: '', qtd: '', un: 'un' }], urgencia: o.parada ? 'Urgente' : 'Normal', observacao: '' });
+    return '<div class="card"><h2>Pedir peças</h2><p class="hint">' + esc(o.maquina) + ' · ' + esc(o.numero) + '. O pedido vai para o Compras: escritório aprova, comprador cota e compra. Você acompanha aqui na OS.</p>' +
+      (!S.online ? '<p class="aviso">Sem internet: o pedido fica guardado e vai sozinho quando o sinal voltar.</p>' : '') +
+      '<div class="campo">Peças<div class="lista">' + f.itens.map(function (it, i) {
+        return '<div class="item-peca"><input id="pDesc' + i + '" placeholder="Peça, medida, marca ou código" value="' + esc(it.desc) + '">' +
+          '<div class="linha3"><input id="pQtd' + i + '" inputmode="decimal" placeholder="Qtd" value="' + esc(it.qtd) + '">' +
+          '<select id="pUn' + i + '">' + UNIDADES.map(function (x) { return '<option' + (x === it.un ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+          (f.itens.length > 1 ? '<button class="btn sec" data-tirar-item="' + i + '" aria-label="Tirar peça">×</button>' : '<span></span>') + '</div></div>';
+      }).join('') + '</div><button class="btn sec" id="btnMaisItem">+ Outra peça</button></div>' +
+      '<div class="campo">Urgência<div class="seg">' + ['Normal', 'Urgente'].map(function (x) { return '<button data-urg="' + x + '" aria-pressed="' + (f.urgencia === x) + '">' + x + '</button>'; }).join('') + '</div></div>' +
+      '<label>Observação <small>onde comprar, peça original ou paralela, foto do código</small><textarea id="pObs">' + esc(f.observacao) + '</textarea></label>' +
+      '<p class="erro" id="pErro" hidden></p><button class="btn" id="btnEnviarPecas">' + (S.online ? 'Enviar pedido' : 'Guardar pedido') + '</button></div>';
   }
 
   function vPainel() {
@@ -381,6 +443,8 @@
     if (i.acao === 'abrirOS') return 'Abrir OS do relato ' + i.args[0];
     if (i.acao === 'descartarRelato') return 'Descartar relato ' + i.args[0];
     if (i.acao === 'atualizarOS') return 'Alteração da ' + i.args[0];
+    if (i.acao === 'pedirPecas') return 'Pedido de peças da ' + i.args[0];
+    if (i.acao === 'receberPeca') return 'Chegada de peça · ' + i.args[0];
     return i.acao;
   }
 
@@ -436,7 +500,11 @@
       if ($('#fObra')) f.obra = $('#fObra').value;
       if ($('#fHor')) f.horimetro = $('#fHor').value;
       if ($('#fBusca')) f.busca = $('#fBusca').value;
+    } else if (S.view === 'pedirPecas') {
+      f.itens.forEach(function (it, i) { var d = $('#pDesc' + i), q = $('#pQtd' + i), un = $('#pUn' + i); if (d) it.desc = d.value; if (q) it.qtd = q.value; if (un) it.un = un.value; });
+      var po = $('#pObs'); if (po) f.observacao = po.value;
     } else if (S.view === 'os') {
+      var ro = $('#recObs'); if (ro && S.receber) S.receber.obs = ro.value;
       [['oDiag', 'diagnostico'], ['oServ', 'servico'], ['oPecas', 'pecas'], ['oCusto', 'custoPecas'], ['oHoras', 'horasMO'], ['oObs', 'observacao'], ['oMec', 'mecanico'], ['oPri', 'prioridade']].forEach(function (p) { var el = $('#' + p[0]); if (el) f[p[1]] = el.value; });
       if ($('#oParada')) f.parada = $('#oParada').checked;
     }
@@ -502,6 +570,13 @@
       var bs = $('#btnSalvar'); if (bs) bs.onclick = function () { salvarOS(null); };
       var bc = $('#btnConcluir'); if (bc) bc.onclick = function () { salvarOS('Concluída'); };
       var bp = $('#btnPdf'); if (bp) bp.onclick = function () { gerarPdf(bp); };
+      ligarPecas();
+    }
+    if (S.view === 'pedirPecas') {
+      app.querySelectorAll('[data-urg]').forEach(function (b) { b.onclick = function () { salvarCamposDaTela(); S.form.urgencia = b.dataset.urg; render(); }; });
+      app.querySelectorAll('[data-tirar-item]').forEach(function (b) { b.onclick = function () { salvarCamposDaTela(); S.form.itens.splice(Number(b.dataset.tirarItem), 1); render(); }; });
+      $('#btnMaisItem').onclick = function () { salvarCamposDaTela(); S.form.itens.push({ desc: '', qtd: '', un: 'un' }); render(); var d = $('#pDesc' + (S.form.itens.length - 1)); if (d) d.focus(); };
+      $('#btnEnviarPecas').onclick = enviarPedidoPecas;
     }
   }
 
@@ -557,6 +632,59 @@
     salvarSnap().then(function () { return enfileirar('atualizarOS', [o.numero, d], { dataTexto: agoraTexto() }); }).then(function () {
       S.form = null; render();
       toast(concluiuAgora ? o.numero + ' concluída' + (S.online ? '' : ' (será enviada quando o sinal voltar)') : 'Salvo' + (S.online ? '' : ' no celular'));
+    });
+  }
+
+  function ligarPecas() {
+    var bpp = $('#btnPedirPecas'); if (bpp) bpp.onclick = function () { salvarCamposDaTela(); var n = S.form.numero; S.receber = null; ir('pedirPecas', { numero: n }); };
+    app.querySelectorAll('[data-receber]').forEach(function (b) { b.onclick = function () { salvarCamposDaTela(); S.receber = { rc: b.dataset.receber, tipo: b.dataset.tipoRec, obs: (S.receber && S.receber.obs) || '' }; render(); var t = $('#recObs'); if (t) t.focus(); }; });
+    var bcr = $('#btnConfRec'); if (bcr) bcr.onclick = confirmarChegada;
+    app.querySelectorAll('#cardPecas [data-ir]').forEach(function (b) { b.onclick = function () { ir(b.dataset.ir); }; });
+  }
+  // depois de atualizar, redesenha só o quadro de peças (sem apagar o que a pessoa está digitando na OS)
+  function atualizarCardPecas() {
+    var el = $('#cardPecas'), o = acharOS(S.dados && S.dados.numero);
+    var av = $('#avisoPend'); if (av && o && !osPendente(o.numero)) av.remove();
+    if (!el || !o) return;
+    var ro = $('#recObs'); if (ro && S.receber) S.receber.obs = ro.value;
+    var novo = blocoPecas(o, o.podeEditar);
+    if (novo) el.outerHTML = novo; else el.remove();
+    ligarPecas();
+  }
+
+  function enviarPedidoPecas() {
+    salvarCamposDaTela();
+    var f = S.form, o = acharOS(f.numero);
+    var itens = [];
+    for (var i = 0; i < f.itens.length; i++) {
+      var it = f.itens[i], desc = String(it.desc || '').trim(), qtd = Number(String(it.qtd || '').replace(',', '.'));
+      if (!desc && !String(it.qtd || '').trim()) continue;
+      if (!desc) return mostrarErro('pErro', 'Escreva qual é a peça ' + (i + 1) + '.');
+      if (!(qtd > 0)) return mostrarErro('pErro', 'Informe a quantidade de "' + desc + '".');
+      itens.push({ desc: desc, qtd: qtd, un: it.un || 'un' });
+    }
+    if (!itens.length) return mostrarErro('pErro', 'Inclua pelo menos uma peça.');
+    var op = O.novoCodigo();
+    var item = { op: op, acao: 'pedirPecas', args: [f.numero, { itens: itens, urgencia: f.urgencia, observacao: f.observacao, quando: Date.now(), idCliente: op }],
+                 criadoEm: Date.now(), seq: S.fila.length, dataTexto: agoraTexto() };
+    if (o && o.status !== 'Concluída' && o.status !== 'Aguardando peça') { o.status = 'Aguardando peça'; o.atualizada = agoraTexto(); o.atualizadaPor = U().nome; }
+    salvarSnap().then(function () { return L.enfileirar(item); }).then(recarregarFila).then(function () {
+      S.form = null;
+      toast(S.online ? 'Pedido de peças enviado ao Compras.' : 'Pedido guardado. Vai para o Compras quando o sinal voltar.');
+      S.pilha.pop(); ir('os', { numero: f.numero }, true);
+      pedirEnvioEmSegundoPlano();
+      setTimeout(sincronizar, 50);
+    }).catch(function () { mostrarErro('pErro', 'Não consegui guardar o pedido neste celular. Tente de novo.'); });
+  }
+
+  function confirmarChegada() {
+    salvarCamposDaTela();
+    var r = S.receber; if (!r) return;
+    if (r.tipo !== 'Total' && !String(r.obs || '').trim()) return mostrarErro('recErro', r.tipo === 'Parcial' ? 'Escreva o que chegou e o que faltou.' : 'Escreva qual foi o problema.');
+    var op = O.novoCodigo();
+    S.receber = null;
+    enfileirar('receberPeca', [r.rc, { tipo: r.tipo, obs: r.obs || '', quando: Date.now(), idCliente: op }], { dataTexto: agoraTexto() }).then(function () {
+      render(); toast('Chegada registrada' + (S.online ? '' : ' (será enviada quando o sinal voltar)'));
     });
   }
 
