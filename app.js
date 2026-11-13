@@ -1,7 +1,7 @@
 /* Oficina · app de relatos e ordens de serviço · v2.0
    Funciona sem internet: tudo fica no celular e é enviado quando o sinal voltar. */
 (function () {
-  var VERSAO_APP = '2.0.0';
+  var VERSAO_APP = '2.1.0';
   var O = window.Oficina, L = O.Local;
   var S = { token: null, snap: null, fila: [], view: 'carregando', pilha: [], form: null, dados: null, filtroOS: 'abertas',
             online: navigator.onLine !== false, sincronizando: false, instalar: null, login: { nomes: null, msg: '', nome: '' } };
@@ -295,11 +295,14 @@
     var u = U(), l = (S.snap && S.snap.os) || [];
     if (u.mecanico && !u.chefe) l = l.filter(function (o) { return o.mecanico === u.nome; });
     var filtros = [['abertas', 'Abertas'], ['Aguardando peça', 'Aguardando peça'], ['Concluída', 'Concluídas']];
-    var vis = l.filter(function (o) { return S.filtroOS === 'abertas' ? o.status !== 'Concluída' : o.status === S.filtroOS; });
+    var minhas = function (o) { return o.mecanico === u.nome && o.status !== 'Concluída'; };
+    if (u.chefe && (l.some(minhas) || S.filtroOS === 'minhas')) filtros.splice(1, 0, ['minhas', 'Minhas']);
+    var passa = function (f, o) { return f === 'abertas' ? o.status !== 'Concluída' : f === 'minhas' ? minhas(o) : o.status === f; };
+    var vis = l.filter(function (o) { return passa(S.filtroOS, o); });
     var novas = S.fila.filter(function (i) { return i.acao === 'abrirOS'; }).length;
     var titulo = u.mecanico ? 'Minhas OS' : (u.chefe ? 'Ordens de serviço' : 'Serviços em andamento');
     return '<h2>' + titulo + '</h2>' +
-      (u.chefe || u.mecanico ? '<div class="chips">' + filtros.map(function (f) { return '<button class="chip" data-filtro="' + esc(f[0]) + '" aria-pressed="' + (S.filtroOS === f[0]) + '">' + f[1] + ' (' + l.filter(function (o) { return f[0] === 'abertas' ? o.status !== 'Concluída' : o.status === f[0]; }).length + ')</button>'; }).join('') + '</div>' : '') +
+      (u.chefe || u.mecanico ? '<div class="chips">' + filtros.map(function (f) { return '<button class="chip" data-filtro="' + esc(f[0]) + '" aria-pressed="' + (S.filtroOS === f[0]) + '">' + f[1] + ' (' + l.filter(function (o) { return passa(f[0], o); }).length + ')</button>'; }).join('') + '</div>' : '') +
       (novas ? '<p class="aviso">' + novas + (novas === 1 ? ' OS nova' : ' OS novas') + ' aguardando envio. O número aparece depois que o celular sincronizar.</p>' : '') +
       (vis.length ? '<div class="lista">' + vis.map(function (o) {
         var cls = o.status === 'Concluída' ? 'ok' : (o.prioridade === 'Urgente' ? 'urgente' : (o.prioridade === 'Alta' ? 'alta' : ''));
@@ -343,8 +346,7 @@
       '<label>Diagnóstico<textarea id="oDiag"' + dis + ' placeholder="O que foi encontrado">' + esc(f.diagnostico) + '</textarea></label>' +
       '<label>Serviço executado<textarea id="oServ"' + dis + ' placeholder="O que foi feito">' + esc(f.servico) + '</textarea></label>' +
       '<label>Peças usadas <small>uma por linha, com a quantidade</small><textarea id="oPecas"' + dis + ' placeholder="Ex.: 2 mangueiras hidráulicas 1/2&quot;">' + esc(f.pecas) + '</textarea></label>' +
-      '<div class="linha"><label>Custo das peças (R$)<input id="oCusto" inputmode="decimal"' + dis + ' value="' + esc(f.custoPecas) + '"></label>' +
-      '<label>Horas de mão de obra<input id="oHoras" inputmode="decimal"' + dis + ' value="' + esc(f.horasMO) + '"></label></div>' +
+      '<label>Horas de mão de obra<input id="oHoras" inputmode="decimal"' + dis + ' value="' + esc(f.horasMO) + '"></label>' +
       (u.chefe ? '<label>Observação<input id="oObs" value="' + esc(f.observacao) + '"></label>' : '') +
       '<div class="campo">Fotos do serviço<div class="fotos">' + (o.fotos || []).map(thumb).join('') + fotosPend.map(thumbLocal).join('') +
         f.fotosNovas.map(function (src, i) { return '<div class="foto"><img src="' + src + '" alt="Foto nova"><button data-tirar="' + i + '" aria-label="Tirar foto">×</button></div>'; }).join('') +
@@ -365,12 +367,12 @@
       '<div class="tile' + (p.porStatus['Aguardando peça'] ? ' bad' : '') + '"><span class="n">' + (p.porStatus['Aguardando peça'] || 0) + '</span><span class="l">Aguardando peça</span></div>' +
       '<div class="tile"><span class="n">' + p.concluidas30 + '</span><span class="l">Concluídas em 30 dias</span></div>' +
       '<div class="tile"><span class="n">' + (p.reparoMedioDias === null ? '–' : String(p.reparoMedioDias).replace('.', ',')) + '</span><span class="l">Dias médios por OS</span></div>' +
-      '<div class="tile"><span class="n" style="font-size:22px;line-height:30px">' + reais(p.pecas90) + '</span><span class="l">Peças em 90 dias</span></div></div>' +
+      '<div class="tile"><span class="n" style="font-size:22px;line-height:30px">' + (p.diasParados90 === undefined ? '–' : p.diasParados90) + '</span><span class="l">Dias parados (90 dias)</span></div></div>' +
       '<div class="card"><h3>Máquinas paradas</h3>' + (p.paradas.length ? '<div class="tabela"><table><thead><tr><th>Máquina</th><th class="num">Dias</th><th>Situação</th></tr></thead><tbody>' +
         p.paradas.map(function (m) { return '<tr><td><b>' + esc(m.maquina) + '</b><br><span class="hint">desde ' + esc(m.desde) + (m.os ? ' · ' + esc(m.os) : '') + '</span></td><td class="num"><b' + (m.dias >= 7 ? ' style="color:var(--bad)"' : '') + '>' + m.dias + '</b></td><td>' + esc(m.status) + (m.mecanico ? '<br><span class="hint">' + esc(m.mecanico) + '</span>' : '') + '</td></tr>'; }).join('') +
         '</tbody></table></div>' : '<p class="hint">Nenhuma máquina parada.</p>') + '</div>' +
-      '<div class="card"><h3>Mais OS nos últimos 90 dias</h3>' + (p.recorrentes.length ? '<div class="tabela"><table><thead><tr><th>Máquina</th><th class="num">OS</th><th>Defeito mais comum</th><th class="num">Peças</th></tr></thead><tbody>' +
-        p.recorrentes.map(function (m) { return '<tr><td><b>' + esc(m.maquina) + '</b></td><td class="num"><b>' + m.qtd + '</b></td><td>' + esc(m.tipo) + '</td><td class="num">' + reais(m.pecas) + '</td></tr>'; }).join('') +
+      '<div class="card"><h3>Mais OS nos últimos 90 dias</h3>' + (p.recorrentes.length ? '<div class="tabela"><table><thead><tr><th>Máquina</th><th class="num">OS</th><th>Defeito mais comum</th><th class="num">Dias parada</th></tr></thead><tbody>' +
+        p.recorrentes.map(function (m) { return '<tr><td><b>' + esc(m.maquina) + '</b></td><td class="num"><b>' + m.qtd + '</b></td><td>' + esc(m.tipo) + '</td><td class="num">' + (m.dias === undefined ? '–' : m.dias) + '</td></tr>'; }).join('') +
         '</tbody></table></div><p class="hint">Máquina com muitas OS do mesmo tipo de defeito: vale investigar a causa.</p>' : '<p class="hint">Ainda não há OS nos últimos 90 dias.</p>') + '</div>';
   }
 
